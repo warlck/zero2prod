@@ -17,6 +17,12 @@ sqlx = { version = "0.8", features = [
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 config = "0.15"
+tower-http = { version = "0.6", features = ["trace"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
+tracing-bunyan-formatter = "0.3"
+tracing-log = "0.2"
+
 
 [lib]
 path = "src/lib.rs"
