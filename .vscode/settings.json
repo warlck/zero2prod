@@ -1,0 +1,9 @@
+{
+  "editor.hover.enabled": "on",
+  "editor.hover.delay": 200,
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.allTargets": true,
+  "rust-analyzer.cargo.extraEnv": {
+    "SQLX_OFFLINE": "true"
+  }
+}
