@@ -163,3 +163,35 @@ jobs:
 
       - name: Generate code coverage
         run: cargo tarpaulin --verbose --workspace
+        
+  deploy:
+    name: Deploy to Google Cloud Run
+    runs-on: ubuntu-latest
+    needs: [test, fmt, clippy, coverage]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build \
+            --tag asia-southeast1-docker.pkg.dev/zero2prod-1790050760/zero2prod-repo/zero2prod:alpine \
+            --file Dockerfile .
+          docker push asia-southeast1-docker.pkg.dev/zero2prod-1790050760/zero2prod-repo/zero2prod:alpine
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run services replace service.yaml --region asia-southeast1
+

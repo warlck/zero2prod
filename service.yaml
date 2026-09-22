@@ -1,0 +1,76 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: zero2prod
+  annotations:
+    # Allow unauthenticated public traffic
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Autoscaling: scale down to 0 when idle to save cost
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '5'
+        # Optional: Connect to Cloud SQL (Managed Postgres in Singapore)
+        # run.googleapis.com/cloudsql-instances: PROJECT_ID:asia-southeast1:INSTANCE_NAME
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - name: zero2prod
+          # Replace with your Artifact Registry or Docker Hub image path
+          image: asia-southeast1-docker.pkg.dev/zero2prod-1790050760/zero2prod-repo/zero2prod:alpine
+
+          ports:
+            - name: http1
+              containerPort: 8000
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          env:
+            - name: APP_ENVIRONMENT
+              value: "production"
+            - name: APP_APPLICATION__HOST
+              value: "0.0.0.0"
+            - name: APP_APPLICATION__PORT
+              value: "8000"
+
+            # Database Configuration
+            - name: APP_DATABASE__HOST
+              value: "aws-0-ap-southeast-1.pooler.supabase.com"
+            - name: APP_DATABASE__PORT
+              value: "5432"
+            - name: APP_DATABASE__DATABASE_NAME
+              value: "postgres"
+            - name: APP_DATABASE__USERNAME
+              value: "postgres.gzynbyjjzophexdauqjp"
+            - name: APP_DATABASE__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-db-password
+                  key: latest
+
+              # Or from Secret Manager:
+              # valueFrom:
+              #   secretKeyRef:
+              #     name: db-password
+              #     key: latest
+
+          # Use your existing health check endpoint
+          startupProbe:
+            httpGet:
+              path: /health_check
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 2
+
+          livenessProbe:
+            httpGet:
+              path: /health_check
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 2
