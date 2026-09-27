@@ -8,7 +8,22 @@ IMAGE_URI = $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPOSITORY)/$(SERVICE_NAME)
 PROJECT_NUMBER = $(shell gcloud projects describe $(PROJECT_ID) --format="value(projectNumber)")
 SERVICE_ACCOUNT = $(PROJECT_NUMBER)-compute@developer.gserviceaccount.com
 
-.PHONY: help build push deploy release logs url add-secret update-secret remove-secret list-secrets test
+# Database & Migration Settings
+ENV ?= $(if $(APP_ENVIRONMENT),$(APP_ENVIRONMENT),local)
+
+LOCAL_DB_USER ?= postgres
+LOCAL_DB_PASSWORD ?= password
+LOCAL_DB_HOST ?= localhost
+LOCAL_DB_PORT ?= 5432
+LOCAL_DB_NAME ?= newsletter
+LOCAL_DATABASE_URL ?= postgres://$(LOCAL_DB_USER):$(LOCAL_DB_PASSWORD)@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/$(LOCAL_DB_NAME)
+
+PROD_DB_HOST ?= aws-0-ap-southeast-1.pooler.supabase.com
+PROD_DB_PORT ?= 5432
+PROD_DB_USER ?= postgres.gzynbyjjzophexdauqjp
+PROD_DB_NAME ?= postgres
+
+.PHONY: help build push deploy release logs url add-secret update-secret remove-secret list-secrets test migrate migrate-prod
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -83,8 +98,42 @@ list-secrets: ## List all secrets in Secret Manager
 	gcloud secrets list
 
 # -----------------------------------------------------------------------------
+# Database & Migrations
+# -----------------------------------------------------------------------------
+
+migrate: ## Run sqlx migrations. Usage: make migrate [ENV=local|production]
+	@if [ "$(ENV)" = "production" ] || [ "$(ENV)" = "prod" ]; then \
+		echo "Preparing migration for PRODUCTION database..."; \
+		pwd="$(SUPABASE_DB_PASSWORD)"; \
+		if [ -z "$$pwd" ] && [ -f .env ]; then \
+			pwd=$$(grep -E '^SUPABASE_DB_PASSWORD=' .env 2>/dev/null | head -n 1 | sed -E 's/^[^=]+=(.*)$$/\1/' | sed -e 's/^"//' -e 's/"$$//' -e "s/^'//" -e "s/'$$//"); \
+			if [ -n "$$pwd" ]; then echo "Loaded SUPABASE_DB_PASSWORD from .env"; fi; \
+		fi; \
+		if [ -z "$$pwd" ]; then \
+			read -sp "Enter Supabase DB Password: " pwd; echo ""; \
+		fi; \
+		if [ -z "$$pwd" ]; then echo "Error: Database password is required."; exit 1; fi; \
+		db_url="postgres://$(PROD_DB_USER):$${pwd}@$(PROD_DB_HOST):$(PROD_DB_PORT)/$(PROD_DB_NAME)?sslmode=require"; \
+		echo "Applying migrations to remote Supabase database ($(PROD_DB_HOST))..."; \
+		DATABASE_URL="$$db_url" sqlx migrate run; \
+	elif [ "$(ENV)" = "local" ]; then \
+		echo "Applying migrations to local database ($(LOCAL_DB_HOST):$(LOCAL_DB_PORT))..."; \
+		DATABASE_URL="$(LOCAL_DATABASE_URL)" sqlx migrate run; \
+	else \
+		echo "Unknown environment: '$(ENV)'. Please use ENV=local or ENV=production."; \
+		exit 1; \
+	fi
+
+migrate-prod: ## Shortcut to apply migrations to production database
+	@$(MAKE) migrate ENV=production
+
+prepare: ## Regenerate sqlx offline query cache
+	DATABASE_URL=$(LOCAL_DATABASE_URL) cargo sqlx prepare -- --all-targets
+
+
+# -----------------------------------------------------------------------------
 # Local Development
 # -----------------------------------------------------------------------------
 
 test: ## Run integration tests with local postgres
-	DATABASE_URL=postgres://postgres:password@localhost:5432/newsletter cargo test
+	DATABASE_URL=$(LOCAL_DATABASE_URL) cargo test

@@ -25,6 +25,10 @@ tracing-log = "0.2"
 serde-aux = "4.7.0"
 unicode-segmentation = "1"
 validator = "0.21.0"
+resend-rs = "0.32.3"
+reqwest = "0.13.4"
+rand = "0.9"
+
 
 
 [lib]
@@ -37,6 +41,8 @@ name = "zero2prod"
 [dev-dependencies]
 claim = "0.5.0"
 fake = "~2.3"
-reqwest = "0.13.4"
 quickcheck = "0.9.2"
 quickcheck_macros = "0.9.1"
+wiremock = "0.6"
+serde_json = "1.0.151"
+linkify = "0.5"

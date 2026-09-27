@@ -1,3 +1,4 @@
 /target
 /book_chapters
 .env
+NVIM_GUIDE.md

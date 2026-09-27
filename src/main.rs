@@ -1,8 +1,6 @@
-use sqlx::postgres::PgPoolOptions;
-use tokio::net::TcpListener;
 use zero2prod::{
+    Application,
     configuration::get_configuration,
-    run,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -13,14 +11,10 @@ async fn main() -> std::io::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let connection_pool = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.database.with_db());
+    let email_client = configuration.email_client.client();
 
-    let address = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.port
-    );
-    let listener = TcpListener::bind(address).await?;
-    run(listener, connection_pool).await
+    let application = Application::build(configuration, email_client).await?;
+    application.run_until_stopped().await?;
+
+    Ok(())
 }
