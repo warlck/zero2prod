@@ -1,11 +1,14 @@
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
+use anyhow::Context;
 use axum::{
     Form,
     extract::{State, rejection::FormRejection},
     http::StatusCode,
+    response::{IntoResponse, Response},
 };
+
 use rand::distr::{Alphanumeric, SampleString};
 
 use chrono::Utc;
@@ -33,6 +36,27 @@ impl TryFrom<FormData> for NewSubscriber {
         Ok(Self { email, name })
     }
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum SubscribeError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl IntoResponse for SubscribeError {
+    fn into_response(self) -> Response {
+        match self {
+            SubscribeError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg).into_response(),
+            SubscribeError::UnexpectedError(e) => {
+                tracing::error!("{:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        }
+    }
+}
+
 #[tracing::instrument(
     name = "Adding a new subscriber",
     skip(pool, email_client, form, base_url),
@@ -46,58 +70,43 @@ pub async fn subscribe(
     State(email_client): State<EmailClient>,
     State(base_url): State<ApplicationBaseUrl>,
     form: Result<Form<FormData>, FormRejection>,
-) -> StatusCode {
-    let Form(form) = match form {
-        Ok(f) => f,
-        Err(e) => {
-            tracing::error!("Failed to parse form: {:?}", e);
-            return StatusCode::BAD_REQUEST;
-        }
-    };
+) -> Result<StatusCode, SubscribeError> {
+    let Form(form) = form.map_err(|e| {
+        tracing::error!("Failed to parse form: {:?}", e);
+        SubscribeError::ValidationError(e.to_string())
+    })?;
 
-    let new_subscriber = match form.try_into() {
-        Ok(form) => form,
-        Err(e) => {
-            tracing::error!("Failed to parse subscriber: {:?}", e);
-            return StatusCode::BAD_REQUEST;
-        }
-    };
+    let new_subscriber = form.try_into().map_err(SubscribeError::ValidationError)?;
 
-    let mut transaction = match pool.begin().await {
-        Ok(transaction) => transaction,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
 
-    let subscriber_id = match insert_subscriber(&mut transaction, &new_subscriber).await {
-        Ok(subscriber_id) => subscriber_id,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
+    let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
+        .await
+        .context("Failed to insert new subscriber in the database.")?;
 
     let subscription_token = generate_subscription_token();
-    if store_token(&mut transaction, subscriber_id, &subscription_token)
+    store_token(&mut transaction, subscriber_id, &subscription_token)
         .await
-        .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
+        .context("Failed to store the confirmation token for a new subscriber.")?;
 
-    if transaction.commit().await.is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store a new subscriber.")?;
 
-    if send_confirmation_email(
+    send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url,
         &subscription_token,
     )
     .await
-    .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
+    .context("Failed to send a confirmation email.")?;
 
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 #[tracing::instrument(
@@ -120,11 +129,7 @@ pub async fn insert_subscriber(
         Utc::now()
     )
     .execute(connection)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        e
-    })?;
+    .await?;
 
     Ok(subscriber_id)
 }
@@ -179,10 +184,6 @@ VALUES ($1, $2)"#,
         subscriber_id
     )
     .execute(connection)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        e
-    })?;
+    .await?;
     Ok(())
 }

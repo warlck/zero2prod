@@ -28,6 +28,8 @@ validator = "0.21.0"
 resend-rs = "0.32.3"
 reqwest = "0.13.4"
 rand = "0.9"
+thiserror = "2.0.21"
+anyhow = "1.0.104"
 
 
 
