@@ -1,7 +1,7 @@
 use crate::{
     configuration::Settings,
     email_client::EmailClient,
-    routes::{confirm, health_check, subscribe},
+    routes::{confirm, health_check, newsletters, subscribe},
 };
 use axum::{
     Router,
@@ -96,6 +96,7 @@ pub fn run(db_pool: PgPool, email_client: EmailClient, base_url: String) -> Rout
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
         .route("/subscriptions/confirm", get(confirm))
+        .route("/newsletters", post(newsletters))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<Body>| {
                 info_span!(

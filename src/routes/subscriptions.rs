@@ -2,7 +2,8 @@ use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
 use anyhow::Context;
-use axum::{
+use axum::
+{
     Form,
     extract::{State, rejection::FormRejection},
     http::StatusCode,
