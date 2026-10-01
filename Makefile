@@ -23,7 +23,7 @@ PROD_DB_PORT ?= 5432
 PROD_DB_USER ?= postgres.gzynbyjjzophexdauqjp
 PROD_DB_NAME ?= postgres
 
-.PHONY: help build push deploy release logs url add-secret update-secret remove-secret list-secrets test migrate migrate-prod
+.PHONY: help build push deploy release logs url add-secret update-secret remove-secret list-secrets test migrate migrate-prod init_db
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -129,6 +129,16 @@ migrate-prod: ## Shortcut to apply migrations to production database
 
 prepare: ## Regenerate sqlx offline query cache
 	DATABASE_URL=$(LOCAL_DATABASE_URL) cargo sqlx prepare -- --all-targets
+
+
+init-db: ## Launch local Postgres in Docker and run migrations
+	@POSTGRES_USER=$(LOCAL_DB_USER) \
+	POSTGRES_PASSWORD=$(LOCAL_DB_PASSWORD) \
+	POSTGRES_DB=$(LOCAL_DB_NAME) \
+	POSTGRES_PORT=$(LOCAL_DB_PORT) \
+	POSTGRES_HOST=$(LOCAL_DB_HOST) \
+	SKIP_DOCKER=$(SKIP_DOCKER) \
+	bash ./scripts/init_db.sh
 
 
 # -----------------------------------------------------------------------------

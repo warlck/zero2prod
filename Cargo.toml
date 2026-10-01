@@ -30,6 +30,10 @@ reqwest = "0.13.4"
 rand = "0.9"
 thiserror = "2.0.21"
 anyhow = "1.0.104"
+base64 = "0.23.1"
+secrecy = "0.10.3"
+sha3 = "0.10"
+argon2 = { version = "0.3", features = ["std"] }
 
 
 
