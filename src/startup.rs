@@ -1,7 +1,7 @@
 use crate::{
     configuration::Settings,
     email_client::EmailClient,
-    routes::{confirm, health_check, newsletters, subscribe},
+    routes::{confirm, health_check, home, login, login_form, newsletters, subscribe},
 };
 use axum::{
     Router,
@@ -93,6 +93,9 @@ pub fn run(db_pool: PgPool, email_client: EmailClient, base_url: String) -> Rout
     };
 
     Router::new()
+        .route("/", get(home))
+        .route("/login", get(login_form))
+        .route("/login", post(login))
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
         .route("/subscriptions/confirm", get(confirm))

@@ -7,3 +7,9 @@ pub use subscriptions_confirm::*;
 
 mod newsletters;
 pub use newsletters::*;
+
+mod home;
+pub use home::*;
+
+mod login;
+pub use login::*;
