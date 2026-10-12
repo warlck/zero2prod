@@ -1,5 +1,6 @@
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
+use secrecy::SecretString;
 use sqlx::ConnectOptions;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 use std::convert::{TryFrom, TryInto};
@@ -10,6 +11,7 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
     pub email_client: EmailClientSettings,
+    pub redis_uri: SecretString,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -26,7 +28,8 @@ pub struct DatabaseSettings {
 pub struct ApplicationSettings {
     pub port: u16,
     pub host: String,
-    pub base_url: String, 
+    pub base_url: String,
+    pub hmac_secret: secrecy::SecretBox<str>,
 }
 
 impl DatabaseSettings {

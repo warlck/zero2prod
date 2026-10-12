@@ -15,6 +15,5 @@ async fn main() -> std::io::Result<()> {
 
     let application = Application::build(configuration, email_client).await?;
     application.run_until_stopped().await?;
-
     Ok(())
 }

@@ -56,6 +56,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub port: u16,
     pub test_user: TestUser,
+    pub api_client: reqwest::Client, // Share cookies between login and publishing.
 }
 
 impl TestApp {
@@ -89,14 +90,51 @@ impl TestApp {
         ConfirmationLinks { html, plain_text }
     }
 
-    pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        reqwest::Client::new()
-            .post(format!("{}/newsletters", self.address))
-            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
-            .json(&body)
+    pub async fn post_newsletters(&self, body: &[(&str, &str)]) -> reqwest::Response {
+        self.api_client // Automatically sends the saved session cookie.
+            .post(format!("{}/admin/newsletters", self.address))
+            .form(body) // URL-encode the fields and set the correct Content-Type.
+            .send()
+            .await
+            .expect("Failed to execute newsletter request")
+    }
+
+    pub async fn follow_redirect(
+        &self,
+        client: &reqwest::Client,
+        response: reqwest::Response,
+    ) -> reqwest::Response {
+        assert_eq!(response.status(), reqwest::StatusCode::SEE_OTHER);
+        let location = response
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .expect("Location header missing")
+            .to_str()
+            .unwrap();
+        client
+            .get(format!("{}{location}", self.address))
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+
+    pub async fn login(&self) {
+        let response = self
+            .api_client
+            .post(format!("{}/login", self.address))
+            .form(&[
+                ("username", self.test_user.username.as_str()),
+                ("password", self.test_user.password.as_str()),
+            ])
+            .send()
+            .await
+            .expect("Failed to execute login request");
+
+        assert_eq!(response.status(), reqwest::StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers()[reqwest::header::LOCATION],
+            "/admin/dashboard"
+        ); // Verify login succeeded before continuing the test.
     }
 }
 
@@ -143,6 +181,11 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         port: application_port,
         test_user: TestUser::generate(),
+        api_client: reqwest::Client::builder()
+            .cookie_store(true)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .expect("Failed to build test client"),
     };
 
     test_app.test_user.store(&test_app.db_pool).await;
