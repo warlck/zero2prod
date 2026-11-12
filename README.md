@@ -162,3 +162,23 @@ When a database password or API token changes:
    ```bash
    make deploy
    ```
+
+---
+
+## Reference Rust Web Codebases
+
+Idiomatic open-source Rust + Axum web applications for study and comparison, ordered from small to large scale:
+
+### Small & Focused
+- **[launchbadge/realworld-axum-sqlx](https://github.com/launchbadge/realworld-axum-sqlx)**: RealWorld (Medium clone) API built by the `sqlx` maintainers. Good reference for central error types (`IntoResponse`), custom auth extractors, and feature-based module layout.
+- **[matze/wastebin](https://github.com/matze/wastebin)**: Self-hosted pastebin built with Axum, SQLite, and `askama` HTML templates. Clean example of a small server-rendered web app.
+- **[tokio-rs/axum `examples/`](https://github.com/tokio-rs/axum/tree/main/examples)**: Official Axum examples maintained by the Tokio team (`sqlx-postgres`, `error-handling`, `graceful-shutdown`, `customize-extractor-error`).
+
+### Medium Production Services
+- **[atuinsh/atuin (`crates/atuin-server`)](https://github.com/atuinsh/atuin/tree/main/crates/atuin-server)**: Shell history sync server using Axum, SQLx, PostgreSQL, and `tracing`.
+- **[maxcountryman/axum-login (`examples/`)](https://github.com/maxcountryman/axum-login/tree/main/examples)**: Session authentication, login/logout flows, and protected route layers by the author of `tower-sessions`.
+
+### Large-Scale Production Systems
+- **[svix/svix-webhooks (`server/`)](https://github.com/svix/svix-webhooks/tree/main/server)**: Enterprise webhook delivery service using Axum, PostgreSQL, and Redis (idempotency, outbox/queue workers, and retries).
+- **[rust-lang/crates.io](https://github.com/rust-lang/crates.io)**: Official Rust package registry using Axum for HTTP, background job workers, and an integration test harness similar to `TestApp`.
+
