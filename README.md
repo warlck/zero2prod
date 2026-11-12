@@ -167,18 +167,29 @@ When a database password or API token changes:
 
 ## Reference Rust Web Codebases
 
-Idiomatic open-source Rust + Axum web applications for study and comparison, ordered from small to large scale:
+Idiomatic open-source Rust web applications for study and comparison:
 
-### Small & Focused
+### Small & Focused (Axum)
 - **[launchbadge/realworld-axum-sqlx](https://github.com/launchbadge/realworld-axum-sqlx)**: RealWorld (Medium clone) API built by the `sqlx` maintainers. Good reference for central error types (`IntoResponse`), custom auth extractors, and feature-based module layout.
 - **[matze/wastebin](https://github.com/matze/wastebin)**: Self-hosted pastebin built with Axum, SQLite, and `askama` HTML templates. Clean example of a small server-rendered web app.
 - **[tokio-rs/axum `examples/`](https://github.com/tokio-rs/axum/tree/main/examples)**: Official Axum examples maintained by the Tokio team (`sqlx-postgres`, `error-handling`, `graceful-shutdown`, `customize-extractor-error`).
 
-### Medium Production Services
+### Medium Services & Workspace Blueprints (Axum)
 - **[atuinsh/atuin (`crates/atuin-server`)](https://github.com/atuinsh/atuin/tree/main/crates/atuin-server)**: Shell history sync server using Axum, SQLx, PostgreSQL, and `tracing`.
 - **[maxcountryman/axum-login (`examples/`)](https://github.com/maxcountryman/axum-login/tree/main/examples)**: Session authentication, login/logout flows, and protected route layers by the author of `tower-sessions`.
+- **[rust10x/rust-web-app](https://github.com/rust10x/rust-web-app)**: Production Axum blueprint showing how to split a growing app into Cargo workspace crates (`lib-core`, `lib-web`, `lib-auth`, `lib-rpc`).
+- **[loco-rs/loco (`examples/`)](https://github.com/loco-rs/loco/tree/master/examples)**: Rails-style framework built on top of Axum and Tower, useful for seeing how background workers, mailers, config, and CLI tasks are structured around Axum.
 
-### Large-Scale Production Systems
+### Large-Scale Production Systems (Axum)
+- **[rust-lang/docs.rs](https://github.com/rust-lang/docs.rs)**: Official Rust documentation host built with Axum, SQLx (with `.sqlx/` offline query cache), server-rendered HTML templates, and background build workers.
+- **[windmill-labs/windmill (`backend/`)](https://github.com/windmill-labs/windmill/tree/main/backend)**: Workflow engine and job orchestrator built with Axum, SQLx, and PostgreSQL (`FOR UPDATE SKIP LOCKED` job queues at scale).
 - **[svix/svix-webhooks (`server/`)](https://github.com/svix/svix-webhooks/tree/main/server)**: Enterprise webhook delivery service using Axum, PostgreSQL, and Redis (idempotency, outbox/queue workers, and retries).
 - **[rust-lang/crates.io](https://github.com/rust-lang/crates.io)**: Official Rust package registry using Axum for HTTP, background job workers, and an integration test harness similar to `TestApp`.
+- **[kanidm/kanidm (`server/`)](https://github.com/kanidm/kanidm/tree/master/server)**: Identity and authentication platform built on Axum and Tower with strict type-driven security and structured audit logging.
+
+### Non-Axum Rust Web Codebases (For Comparison)
+- **[LukeMathWalker/zero-to-production](https://github.com/LukeMathWalker/zero-to-production)**: Official companion repository for *Zero to Production in Rust* using Actix Web, useful for comparing side-by-side with this Axum port.
+- **[LemmyNet/lemmy](https://github.com/LemmyNet/lemmy)**: Federated link aggregator built with Actix Web, Diesel, and PostgreSQL, organized into domain workspace crates.
+- **[meilisearch/meilisearch (`crates/meilisearch`)](https://github.com/meilisearch/meilisearch/tree/main/crates/meilisearch)**: Search engine HTTP API built with Actix Web, showcasing clean extractors, pagination, and API error responses.
+- **[dani-garcia/vaultwarden](https://github.com/dani-garcia/vaultwarden)**: Bitwarden-compatible password manager server built with Rocket, known for staying compact and readable.
 
