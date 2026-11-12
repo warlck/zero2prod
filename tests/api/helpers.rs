@@ -6,6 +6,8 @@ use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::Application;
 use zero2prod::configuration::{DatabaseSettings, get_configuration};
+use zero2prod::email_client::EmailClient;
+use zero2prod::issue_delivery_worker::{ExecutionOutcome, try_execute_task};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 pub struct ConfirmationLinks {
@@ -57,6 +59,7 @@ pub struct TestApp {
     pub port: u16,
     pub test_user: TestUser,
     pub api_client: reqwest::Client, // Share cookies between login and publishing.
+    pub email_client: EmailClient,
 }
 
 impl TestApp {
@@ -136,6 +139,18 @@ impl TestApp {
             "/admin/dashboard"
         ); // Verify login succeeded before continuing the test.
     }
+
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue =
+                try_execute_task(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
+            {
+                break;
+            }
+        }
+    }
 }
 
 // Ensure that the `tracing` stack is only initialized once using `LazyLock`
@@ -157,17 +172,12 @@ pub async fn spawn_app() -> TestApp {
     let email_server = MockServer::start().await;
     let mut configuration = get_configuration().expect("Failed to read configuration.");
     configuration.database.database_name = Uuid::new_v4().to_string();
-
     let db_pool = configure_database(&configuration.database).await;
 
     // Use port 0 so the OS assigns a random free port for tests
     configuration.application.port = 0;
-
-    let email_client = configuration
-        .email_client
-        .client_with_base_url(&email_server.uri());
-
-    let application = Application::build(configuration.clone(), email_client)
+    configuration.email_client.base_url = Some(email_server.uri());
+    let application = Application::build(configuration.clone())
         .await
         .expect("Failed to build application");
 
@@ -186,6 +196,7 @@ pub async fn spawn_app() -> TestApp {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("Failed to build test client"),
+        email_client: configuration.email_client.client(),
     };
 
     test_app.test_user.store(&test_app.db_pool).await;

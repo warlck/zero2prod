@@ -59,7 +59,10 @@ pub struct EmailClientSettings {
     pub sender_email: String,
     pub authorization_token: String,
     pub timeout_milliseconds: u64,
+    #[serde(default)]
+    pub base_url: Option<String>,
 }
+
 impl EmailClientSettings {
     pub fn sender(&self) -> Result<SubscriberEmail, String> {
         SubscriberEmail::parse(self.sender_email.clone())
@@ -68,14 +71,17 @@ impl EmailClientSettings {
     pub fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.timeout_milliseconds)
     }
-
     pub fn client(&self) -> EmailClient {
-        EmailClient::new(
-            self.sender().expect("Invalid sender email address."),
-            &self.authorization_token,
-            self.timeout(),
-        )
+        match &self.base_url {
+            Some(base_url) => self.client_with_base_url(base_url),
+            None => {
+                let sender_email = self.sender().expect("Invalid sender email address.");
+                let timeout = self.timeout();
+                EmailClient::new(sender_email, &self.authorization_token, timeout)
+            }
+        }
     }
+
     pub fn client_with_base_url(&self, base_url: &str) -> EmailClient {
         EmailClient::with_base_url(
             self.sender().expect("Invalid sender email address."),

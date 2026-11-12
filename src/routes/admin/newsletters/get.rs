@@ -24,7 +24,7 @@ pub async fn newsletter_form() -> Html<&'static str> {
              <textarea id="html_content" name="html_content" 
      required></textarea>
              <br>
-
+        <input hidden type="text" name="idempotency_key" value="{idempotency_key}">
              <button type="submit">Send newsletter</button>
          </form>
          <p><a href="/admin/dashboard">&lt; Back</a></p>

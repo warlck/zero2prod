@@ -141,6 +141,14 @@ init-db: ## Launch local Postgres in Docker and run migrations
 	bash ./scripts/init_db.sh
 
 
+
+drop-db: ## Drop the local database
+	@echo "Dropping local database ($(LOCAL_DB_NAME))..."
+	@DATABASE_URL="$(LOCAL_DATABASE_URL)" sqlx database drop -y
+
+reset-db: ## Drop, recreate, and run migrations on the local database
+	@echo "Resetting local database ($(LOCAL_DB_NAME))..."
+	@DATABASE_URL="$(LOCAL_DATABASE_URL)" sqlx database reset -y
 # -----------------------------------------------------------------------------
 # Local Development
 # -----------------------------------------------------------------------------

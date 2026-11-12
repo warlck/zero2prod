@@ -5,11 +5,12 @@ use wiremock::{
 
 use crate::helpers::{ConfirmationLinks, TestApp, spawn_app};
 
-fn newsletter_form_data() -> [(&'static str, &'static str); 3] {
+fn newsletter_form_data() -> [(&'static str, &'static str); 4] {
     [
         ("title", "Newsletter title"),                      // Email subject.
         ("text_content", "Newsletter body as plain text"),  // Plain-text version.
         ("html_content", "<p>Newsletter body as HTML</p>"), // HTML version.
+        ("idempotency_key", "unique-idempotency-key"),
     ]
 }
 
@@ -28,6 +29,9 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
 
     let response = app.post_newsletters(&newsletter_form_data()).await;
     assert_eq!(response.status().as_u16(), 200);
+
+    // Act - Part 2: Drain the delivery queue
+    app.dispatch_all_pending_emails().await;
     // Mock verifies on Drop that we haven't sent the newsletter email
 }
 
@@ -53,6 +57,8 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
+
+    app.dispatch_all_pending_emails().await;
     // When app drops, wiremock verifies that 1 email was sent!
 }
 
@@ -186,4 +192,80 @@ async fn newsletters_rejects_json_bodies() {
         .unwrap();
 
     assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn newsletter_creation_is_idempotent() {
+    // Arrange
+    let app = spawn_app().await;
+    app.login().await;
+    create_confirmed_subscriber(&app).await;
+
+    Mock::given(path("/emails"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "mocked-email-id"
+        })))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    let idempotency_key = uuid::Uuid::new_v4().to_string();
+    let mut body = newsletter_form_data().to_vec();
+    body.retain(|&(key, _)| key != "idempotency_key");
+    body.push(("idempotency_key", idempotency_key.as_str()));
+
+    // Act: publish, then retry the same request.
+    let response = app.post_newsletters(&body).await;
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let response_body = response.text().await.unwrap();
+
+    let retry_response = app.post_newsletters(&body).await;
+    assert_eq!(retry_response.status(), reqwest::StatusCode::OK);
+    assert_eq!(retry_response.text().await.unwrap(), response_body);
+
+    app.dispatch_all_pending_emails().await;
+    app.email_server.verify().await;
+}
+
+#[tokio::test]
+async fn concurrent_form_submission_is_handled_gracefully() {
+    // Arrange
+    let app = spawn_app().await;
+    app.login().await;
+    create_confirmed_subscriber(&app).await;
+
+    Mock::given(path("/emails"))
+        .and(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_delay(std::time::Duration::from_secs(2))
+                .set_body_json(serde_json::json!({ "id": "mocked-email-id" })),
+        )
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    let idempotency_key = uuid::Uuid::new_v4().to_string();
+    let mut body = newsletter_form_data().to_vec();
+    body.retain(|&(key, _)| key != "idempotency_key");
+    body.push(("idempotency_key", idempotency_key.as_str()));
+
+    // Act: Fire both publish requests concurrently
+    let response1 = app.post_newsletters(&body);
+    let response2 = app.post_newsletters(&body);
+    let (response1, response2) = tokio::join!(response1, response2);
+
+    // Assert: Both callers should get identical responses
+    assert_eq!(response1.status(), reqwest::StatusCode::OK);
+    assert_eq!(response1.status(), response2.status());
+    assert_eq!(
+        response1.text().await.unwrap(),
+        response2.text().await.unwrap()
+    );
+
+    app.dispatch_all_pending_emails().await;
+
+    // WireMock verifies that only one email was sent
+    app.email_server.verify().await;
 }
